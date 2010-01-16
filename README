@@ -1,0 +1,76 @@
+## What is it?
+Queue.js is a simple library to handle the queueing of data, it has been written for use in Node.js, although could easily be ported across to other systems (eg: Dojo, jQuery, Narwhal, or any other library that features some form of events system).
+
+## How to use
+Queue.js can be used as is:
+
+	var myQueue = new Queue();
+	myQueue.addListener("process", function(item){
+		sys.puts(">> "+item);
+	});
+	
+	myQueue.push("Test1"); // => `>> Test1`
+	myQueue.push("Test2"); // => `>> Test2`
+	myQueue.push("Test3"); // => `>> Test3`
+	
+Optionally, you can override specific methods to suit your needs, for example, node-smtp overrides the `push` and `process` methods:
+
+	// Local
+	var Queue = require("../vendor/queue").Queue;
+
+	/*-----------------------------------------------
+		PacketHandler
+	-----------------------------------------------*/
+	exports.PacketHandler = function(){};
+	exports.PacketHandler.prototype = new Queue();
+
+	exports.PacketHandler.prototype.push = function(data){
+		var packets = data.split("\r\n");
+		while(packets.length && (packet = packets.shift())){
+			this._stack.push(packet);
+			if( !this._processing ){
+				this._processor();
+			}
+		}
+	};
+
+	exports.PacketHandler.prototype.process = function(){
+		var status = 0, data = [], continued = false;
+
+		while(this._stack.length && (packet = this._stack.shift())){
+			if(continued == false){
+				// not a number, strings are easier to work with as status codes.
+				status = packet.substr(0,3);
+			}
+
+			data.push(packet.substr(4));
+
+			continued = (packet.substr(3,1) == "-");
+			if( !continued){
+				break;
+			}
+		}
+
+		this.emit("packet", {
+			status: status,
+			data: data
+		});
+
+		if(this._stack.length == 0){
+			this.emit("idle");
+		}
+	};
+
+## API
+The api is relatively simple, containing the basic Array methods:
+*	push
+*	pop
+*	shift
+*	unshift
+
+And the methods that actually do the work:
+*	process
+*	_processor
+
+`Queue.prototype.process` is called every time the queue stack isn't empty. This is either determined by `Queue.prototype._processor` or one of the Array methods calling `Queue.prototype._processor`
+
